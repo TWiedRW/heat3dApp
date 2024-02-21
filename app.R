@@ -6,6 +6,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(rayshader)
+library(rgl)
 
 ##### Setup UI #####
 ui.setup <- fluidPage(
@@ -35,6 +36,7 @@ ui.experiment <- fluidPage(
     mainPanel(
       h2('Data'),
       plotOutput('expCurrentPlot'),
+      uiOutput('expCurrentPlotUI'),
       tableOutput('expCurrentTrial')
     )
   )
@@ -246,6 +248,80 @@ server <- function(input, output, session) {
         tableOutput('test'))
     }
   })
+
+
+
+  output$expCurrentPlotUI <- renderUI({
+
+    trial_data$expCurrentRatio <- filter(trial_data$expData,
+                                         trialNum == trial_data$expCurrentTrial,
+                                         ratio == trt.ratio)
+    updateRadioButtons(session, 'guessExpSmaller', choices = sort(trial_data$expCurrentRatio$label),
+                       selected = '')
+
+
+    plot.type <- unique(trial_data$expCurrentRatio[['plot']])
+    plot.num <- unique(trial_data$expCurrentRatio[['plotID']])
+
+    #Color plot (2d, 3ddc)
+    plot.color <- filter(trial_data$expData, trialNum == trial_data$expCurrentTrial) %>%
+      ggplot(aes(x = x, y = y, fill = z)) +
+      geom_tile(color = 'black') +
+      geom_text(aes(label = label), na.rm = T, color = 'black') +
+      scale_fill_gradient(low = 'white', high = 'darkblue',
+                          limits = c(0,100)) +
+      scale_x_continuous(breaks = 1:10) +
+      scale_y_continuous(breaks = 1:10) +
+      labs(x = 'x-axis', y = 'y-axis', caption = paste0('Plot ID: ', plot.type, '-', plot.num))+
+      theme_minimal() +
+      theme(aspect.ratio = 1, panel.background = element_rect(fill = 'white', color = 'white'),
+            panel.grid = element_blank(), legend.position = 'none',
+            plot.background = element_rect(fill = 'white', color = 'white'),
+            axis.ticks = element_line(color = 'black'))
+
+    #Solid plot (3dds)
+    plot.solid <- filter(trial_data$expData, trialNum == trial_data$expCurrentTrial) %>%
+      ggplot(aes(x = x, y = y, fill = z)) +
+      geom_tile(color = 'black') +
+      geom_text(aes(label = label), na.rm = T, color = 'black') +
+      scale_fill_gradient(low = 'darkblue', high = 'darkblue',
+                          limits = c(0,100)) +
+      scale_x_continuous(breaks = 1:10) +
+      scale_y_continuous(breaks = 1:10) +
+      labs(x = 'x-axis', y = 'y-axis', caption = paste0('Plot ID: ', plot.type, '-', plot.num))+
+      theme_minimal() +
+      theme(aspect.ratio = 1, legend.position = 'none',
+            panel.background = element_rect(fill = 'white'),
+            plot.background = element_rect(fill = 'white', color = 'white'),
+            panel.grid = element_blank())
+
+
+    output$plot2d <- renderPlot({
+      plot.color
+    })
+
+    output$plot3ddc <- renderRglwidget({
+      plot_gg(plot.color, raytrace = F)
+      rglwidget()
+    })
+
+    output$plot3dds <- renderRglwidget({
+      plot_gg(plot.solid, raytrace = F)
+      rglwidget()
+    })
+
+
+    switch(unique(filter(trial_data$expData, trialNum == trial_data$expCurrentTrial)[['plot']]),
+           "2d" = plotOutput("plot2d"),
+           "3ddc" = rglwidgetOutput("plot3ddc"),
+           "3dds" = rglwidgetOutput("plot3dds"))
+
+
+  })
+
+
+
+
 
 
 }
